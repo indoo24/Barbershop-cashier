@@ -4,9 +4,11 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../cubits/printer/printer_cubit.dart';
 import '../../cubits/printer/printer_state.dart';
 import '../../services/permission_service.dart';
+import '../../models/printer_settings.dart';
 import 'models/printer_device.dart';
 import 'package:toastification/toastification.dart';
 import '../../helpers/validation_guard_mixin.dart';
+import '../printer/manual_connection_dialog.dart';
 
 /// Printer selection and management screen
 class PrinterSelectionScreen extends StatefulWidget {
@@ -20,6 +22,8 @@ class _PrinterSelectionScreenState extends State<PrinterSelectionScreen>
     with SingleTickerProviderStateMixin, ValidationGuardMixin {
   late TabController _tabController;
   PrinterConnectionType _selectedType = PrinterConnectionType.wifi;
+  PaperSize _selectedPaperSize = PaperSize.mm80;
+  bool _isInitialized = false;
 
   @override
   void initState() {
@@ -32,6 +36,18 @@ class _PrinterSelectionScreenState extends State<PrinterSelectionScreen>
         });
       }
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // Initialize once
+    if (!_isInitialized) {
+      final cubit = context.read<PrinterCubit>();
+      _selectedPaperSize = cubit.settings.paperSize;
+      _isInitialized = true;
+    }
   }
 
   @override
@@ -51,6 +67,18 @@ class _PrinterSelectionScreenState extends State<PrinterSelectionScreen>
     // Proceed with scanning
     if (!mounted) return;
     context.read<PrinterCubit>().scanPrinters(_selectedType);
+  }
+
+  Future<void> _showManualConnectionDialog() async {
+    final printer = await showDialog<PrinterDevice>(
+      context: context,
+      builder: (context) => const ManualConnectionDialog(),
+    );
+
+    if (printer != null && mounted) {
+      // Connect to manually added printer
+      context.read<PrinterCubit>().connectToPrinter(printer);
+    }
   }
 
   void _showPermissionDeniedDialog() {
@@ -193,12 +221,170 @@ class _PrinterSelectionScreenState extends State<PrinterSelectionScreen>
     );
   }
 
+  Widget _buildInfoItem(String icon, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 24,
+            child: Text(
+              icon,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(fontSize: 14),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _connectToPrinter(PrinterDevice device) {
     context.read<PrinterCubit>().connectToPrinter(device);
   }
 
   void _disconnect() {
     context.read<PrinterCubit>().disconnect();
+  }
+
+  Future<void> _updatePaperSize(PaperSize newSize) async {
+    setState(() => _selectedPaperSize = newSize);
+
+    final cubit = context.read<PrinterCubit>();
+    final currentSettings = cubit.settings;
+
+    await cubit.updateSettings(currentSettings.copyWith(paperSize: newSize));
+
+    if (mounted) {
+      toastification.show(
+        context: context,
+        title: Text('تم تحديث حجم الورق إلى ${newSize.displayName}'),
+        type: ToastificationType.success,
+        autoCloseDuration: const Duration(seconds: 2),
+      );
+    }
+  }
+
+  Widget _buildPaperSizeSection(ThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      color: theme.colorScheme.surface,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.receipt, color: theme.colorScheme.primary, size: 24),
+              const SizedBox(width: 12),
+              Text(
+                'حجم الورق',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: PaperSize.values.map((size) {
+              final isSelected = _selectedPaperSize == size;
+              return Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Material(
+                    color: isSelected
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.surface,
+                    elevation: isSelected ? 4 : 2,
+                    borderRadius: BorderRadius.circular(12),
+                    child: InkWell(
+                      onTap: () => _updatePaperSize(size),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isSelected
+                                ? theme.colorScheme.primary
+                                : theme.dividerColor,
+                            width: isSelected ? 2 : 1,
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.note,
+                              color: isSelected
+                                  ? Colors.white
+                                  : theme.iconTheme.color,
+                              size: 32,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              size.displayName,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: isSelected
+                                    ? Colors.white
+                                    : theme.textTheme.bodyLarge?.color,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${size.charsPerLine} حرف',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: isSelected
+                                    ? Colors.white70
+                                    : theme.textTheme.bodySmall?.color,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primaryContainer.withOpacity(0.3),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.info_outline,
+                  size: 20,
+                  color: theme.colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'يُستخدم حجم الورق المحدد لتنسيق الإيصالات المطبوعة',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -292,10 +478,16 @@ class _PrinterSelectionScreenState extends State<PrinterSelectionScreen>
           }
         },
         builder: (context, state) {
-          return Column(
-            children: [
-              // Connected printer status
-              if (state is PrinterConnected)
+          return SingleChildScrollView(
+            child: Column(
+              children: [
+                // Paper Size Section
+                _buildPaperSizeSection(Theme.of(context)),
+
+                const Divider(height: 1),
+
+                // Connected printer status
+                if (state is PrinterConnected)
                 Container(
                   padding: const EdgeInsets.all(16),
                   color: Colors.green.withOpacity(0.1),
@@ -338,36 +530,55 @@ class _PrinterSelectionScreenState extends State<PrinterSelectionScreen>
                 tabs: const [
                   Tab(icon: Icon(Icons.wifi), text: 'WiFi'),
                   Tab(icon: Icon(Icons.bluetooth), text: 'Bluetooth'),
-                  Tab(icon: Icon(Icons.usb), text: 'USB'),
+                  Tab(icon: Icon(Icons.edit), text: ' Manual'),
                 ],
               ),
 
-              // Scan button
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: state is PrinterScanning ? null : _scanPrinters,
-                    icon: state is PrinterScanning
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.search),
-                    label: Text(
-                      state is PrinterScanning
-                          ? 'جاري البحث...'
-                          : 'بحث عن طابعات',
+              // Scan button (for WiFi and Bluetooth tabs)
+              if (_selectedType != PrinterConnectionType.manualConnect)
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: state is PrinterScanning ? null : _scanPrinters,
+                      icon: state is PrinterScanning
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.search),
+                      label: Text(
+                        state is PrinterScanning
+                            ? 'جاري البحث...'
+                            : 'بحث عن طابعات',
+                      ),
                     ),
                   ),
                 ),
-              ),
+
+              // Manual Connection Interface (for manual connect tab)
+              if (_selectedType == PrinterConnectionType.manualConnect)
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: state is PrinterConnecting ? null : _showManualConnectionDialog,
+                      icon: const Icon(Icons.edit),
+                      label: const Text('إدخال عنوان MAC للطابعة'),
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                    ),
+                  ),
+                ),
 
               // Printers list
-              Expanded(child: _buildPrintersList(state)),
+              _buildPrintersList(state),
             ],
+          ),
           );
         },
       ),
@@ -375,11 +586,131 @@ class _PrinterSelectionScreenState extends State<PrinterSelectionScreen>
   }
 
   Widget _buildPrintersList(PrinterState state) {
-    if (state is PrinterScanning) {
-      return const Center(
+    // Special handling for manual connect tab
+    if (_selectedType == PrinterConnectionType.manualConnect) {
+      return Padding(
+        padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            Icon(Icons.edit_note, size: 80, color: Colors.blue[400]),
+            const SizedBox(height: 24),
+            const Text(
+              'الاتصال اليدوي بالطابعة',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'استخدم هذا الخيار إذا لم تظهر الطابعة في قائمة البلوتوث',
+              style: TextStyle(color: Colors.grey[600]),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 32),
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.blue.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.info_outline, color: Colors.blue, size: 24),
+                        SizedBox(width: 12),
+                        Text(
+                          'متى تستخدم الاتصال اليدوي؟',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    _buildInfoItem('✓', 'الطابعة مقترنة لكن لا تظهر في قائمة البلوتوث'),
+                    _buildInfoItem('✓', 'لديك عنوان MAC الخاص بالطابعة'),
+                    _buildInfoItem('✓', 'تواجه مشاكل في اكتشاف الطابعة تلقائياً'),
+                    const SizedBox(height: 16),
+                    const Divider(),
+                    const SizedBox(height: 16),
+                    const Row(
+                      children: [
+                        Icon(Icons.help_outline, color: Colors.orange, size: 24),
+                        SizedBox(width: 12),
+                        Text(
+                          'كيف تجد عنوان MAC؟',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.orange,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    _buildInfoItem('1', 'ابحث عن ملصق على الطابعة'),
+                    _buildInfoItem('2', 'اطبع صفحة اختبار من الطابعة'),
+                    _buildInfoItem('3', 'راجع إعدادات البلوتوث في الأندرويد'),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'مثال على عنوان MAC:',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            'AA:BB:CC:DD:EE:FF',
+                            style: TextStyle(
+                              fontFamily: 'monospace',
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: state is PrinterConnecting ? null : _showManualConnectionDialog,
+                  icon: const Icon(Icons.edit),
+                  label: const Text('إدخال عنوان MAC'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                ),
+              ),
+            ],
+          ),
+      );
+    }
+
+    if (state is PrinterScanning) {
+      return Padding(
+        padding: const EdgeInsets.all(40),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: const [
             CircularProgressIndicator(),
             SizedBox(height: 16),
             Text('جاري البحث عن الطابعات...'),
@@ -400,7 +731,8 @@ class _PrinterSelectionScreenState extends State<PrinterSelectionScreen>
           return _buildNoBluetoothPrintersView();
         }
 
-        return Center(
+        return Padding(
+          padding: const EdgeInsets.all(40),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -434,57 +766,61 @@ class _PrinterSelectionScreenState extends State<PrinterSelectionScreen>
           .where((d) => d.sourceType == PrinterSourceType.unknown)
           .toList();
 
-      return ListView(
+      return Padding(
         padding: const EdgeInsets.all(16),
-        children: [
-          // Built-in printers section
-          if (builtInPrinters.isNotEmpty) ...[
-            _buildSectionHeader(
-              'طابعات مدمجة',
-              Icons.phone_android,
-              Colors.green,
-              'Built-in',
-            ),
-            ...builtInPrinters.map((device) => _buildPrinterCard(device)),
-            const SizedBox(height: 16),
-          ],
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Built-in printers section
+            if (builtInPrinters.isNotEmpty) ...[
+              _buildSectionHeader(
+                'طابعات مدمجة',
+                Icons.phone_android,
+                Colors.green,
+                'Built-in',
+              ),
+              ...builtInPrinters.map((device) => _buildPrinterCard(device)),
+              const SizedBox(height: 16),
+            ],
 
-          // Paired printers section
-          if (pairedPrinters.isNotEmpty) ...[
-            _buildSectionHeader(
-              'طابعات مقترنة',
-              Icons.bluetooth_connected,
-              Colors.blue,
-              'Paired',
-            ),
-            ...pairedPrinters.map((device) => _buildPrinterCard(device)),
-            const SizedBox(height: 16),
-          ],
+            // Paired printers section
+            if (pairedPrinters.isNotEmpty) ...[
+              _buildSectionHeader(
+                'طابعات مقترنة',
+                Icons.bluetooth_connected,
+                Colors.blue,
+                'Paired',
+              ),
+              ...pairedPrinters.map((device) => _buildPrinterCard(device)),
+              const SizedBox(height: 16),
+            ],
 
-          // Discovered printers section
-          if (discoveredPrinters.isNotEmpty) ...[
-            _buildSectionHeader(
-              'طابعات جديدة',
-              Icons.bluetooth_searching,
-              Colors.orange,
-              'New - Requires Pairing',
-            ),
-            ...discoveredPrinters.map(
-              (device) => _buildPrinterCard(device, isNew: true),
-            ),
-            const SizedBox(height: 16),
-          ],
+            // Discovered printers section
+            if (discoveredPrinters.isNotEmpty) ...[
+              _buildSectionHeader(
+                'طابعات جديدة',
+                Icons.bluetooth_searching,
+                Colors.orange,
+                'New - Requires Pairing',
+              ),
+              ...discoveredPrinters.map(
+                (device) => _buildPrinterCard(device, isNew: true),
+              ),
+              const SizedBox(height: 16),
+            ],
 
-          // Unknown/Legacy printers
-          if (unknownPrinters.isNotEmpty) ...[
-            ...unknownPrinters.map((device) => _buildPrinterCard(device)),
+            // Unknown/Legacy printers
+            if (unknownPrinters.isNotEmpty) ...[
+              ...unknownPrinters.map((device) => _buildPrinterCard(device)),
+            ],
           ],
-        ],
+        ),
       );
     }
 
     if (state is PrinterConnecting) {
-      return Center(
+      return Padding(
+        padding: const EdgeInsets.all(40),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -496,7 +832,8 @@ class _PrinterSelectionScreenState extends State<PrinterSelectionScreen>
       );
     }
 
-    return Center(
+    return Padding(
+      padding: const EdgeInsets.all(40),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -513,25 +850,24 @@ class _PrinterSelectionScreenState extends State<PrinterSelectionScreen>
 
   /// Build a view for when no Bluetooth printers are found
   Widget _buildNoBluetoothPrintersView() {
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.bluetooth_disabled, size: 64, color: Colors.orange[400]),
-            const SizedBox(height: 16),
-            const Text(
-              'لم يتم العثور على طابعات بلوتوث',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'لإضافة طابعة، يرجى إقرانها في إعدادات الجهاز أولاً',
-              style: TextStyle(color: Colors.grey[600]),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.bluetooth_disabled, size: 64, color: Colors.orange[400]),
+          const SizedBox(height: 16),
+          const Text(
+            'لم يتم العثور على طابعات بلوتوث',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'لإضافة طابعة، يرجى إقرانها في إعدادات الجهاز أولاً',
+            style: TextStyle(color: Colors.grey[600]),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -572,7 +908,6 @@ class _PrinterSelectionScreenState extends State<PrinterSelectionScreen>
             ),
           ],
         ),
-      ),
     );
   }
 
@@ -721,8 +1056,8 @@ class _PrinterSelectionScreenState extends State<PrinterSelectionScreen>
         return Icons.wifi;
       case PrinterConnectionType.bluetooth:
         return Icons.bluetooth;
-      case PrinterConnectionType.usb:
-        return Icons.usb;
+      case PrinterConnectionType.manualConnect:
+        return Icons.edit;
     }
   }
 
@@ -732,7 +1067,7 @@ class _PrinterSelectionScreenState extends State<PrinterSelectionScreen>
         return Colors.blue;
       case PrinterConnectionType.bluetooth:
         return Colors.indigo;
-      case PrinterConnectionType.usb:
+      case PrinterConnectionType.manualConnect:
         return Colors.green;
     }
   }

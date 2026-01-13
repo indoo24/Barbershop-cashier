@@ -23,19 +23,23 @@ class PrinterErrorMapper {
 
     if (errorString.contains('bluetooth is not enabled') ||
         errorString.contains('bluetooth is turned off') ||
-        errorString.contains('bluetooth disabled')) {
+        errorString.contains('bluetooth disabled') ||
+        errorString.contains('bt_disabled')) {
       return PrinterError.bluetoothDisabled();
     }
 
     if (errorString.contains('location') &&
-        (errorString.contains('disabled') || errorString.contains('off'))) {
+        (errorString.contains('disabled') ||
+            errorString.contains('off') ||
+            errorString.contains('not enabled'))) {
       return PrinterError.locationDisabled();
     }
 
     // Permission errors
     if (errorString.contains('permission') &&
         (errorString.contains('denied') ||
-            errorString.contains('not granted'))) {
+            errorString.contains('not granted') ||
+            errorString.contains('required'))) {
       return PrinterError.permissionDenied();
     }
 
@@ -60,6 +64,21 @@ class PrinterErrorMapper {
       return PrinterError.pairingRequired();
     }
 
+    // Printer not reachable
+    if (errorString.contains('not reachable') ||
+        errorString.contains('unreachable') ||
+        errorString.contains('offline') ||
+        errorString.contains('powered off')) {
+      return PrinterError.printerNotReachable();
+    }
+
+    // Write/communication errors
+    if (errorString.contains('write failed') ||
+        errorString.contains('send failed') ||
+        errorString.contains('transmission failed')) {
+      return PrinterError.writeFailed();
+    }
+
     // Device discovery errors
     if (errorString.contains('no devices found') ||
         errorString.contains('no printers found')) {
@@ -69,11 +88,6 @@ class PrinterErrorMapper {
     // Communication errors
     if (errorString.contains('socket') && errorString.contains('closed')) {
       return PrinterError.connectionLost();
-    }
-
-    if (errorString.contains('write failed') ||
-        errorString.contains('send failed')) {
-      return PrinterError.sendDataFailed();
     }
 
     if (errorString.contains('not connected') ||
@@ -285,6 +299,24 @@ class PrinterError {
     );
   }
 
+  factory PrinterError.printerNotReachable() {
+    return const PrinterError(
+      code: 'E107_PRINTER_NOT_REACHABLE',
+      technicalMessage: 'Printer is not reachable or powered off',
+      userMessage: 'Cannot reach printer',
+      arabicTitle: 'لا يمكن الوصول للطابعة',
+      arabicMessage:
+          'لا يمكن الوصول للطابعة.\nتأكد من أن الطابعة مشغلة وقريبة من الجهاز.',
+      suggestions: [
+        'تأكد من تشغيل الطابعة',
+        'اقترب من الطابعة',
+        'تحقق من بطارية الطابعة (إن وجدت)',
+        'أعد تشغيل الطابعة',
+      ],
+      isRecoverable: true,
+    );
+  }
+
   // ============================================================================
   // DISCOVERY ERRORS
   // ============================================================================
@@ -323,6 +355,24 @@ class PrinterError {
         'تأكد من اتصال الطابعة',
         'تأكد من وجود ورق في الطابعة',
         'أعد تشغيل الطابعة',
+        'حاول مرة أخرى',
+      ],
+      isRecoverable: true,
+    );
+  }
+
+  factory PrinterError.writeFailed() {
+    return const PrinterError(
+      code: 'E302_WRITE_FAILED',
+      technicalMessage: 'Failed to write data to printer',
+      userMessage: 'Failed to write to printer',
+      arabicTitle: 'فشلت الكتابة إلى الطابعة',
+      arabicMessage:
+          'تعذرت الكتابة إلى الطابعة.\nقد يكون الاتصال غير مستقر.',
+      suggestions: [
+        'تحقق من استقرار الاتصال',
+        'اقترب من الطابعة',
+        'أعد الاتصال بالطابعة',
         'حاول مرة أخرى',
       ],
       isRecoverable: true,

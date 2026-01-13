@@ -795,8 +795,8 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen>
         return Icons.wifi;
       case PrinterConnectionType.bluetooth:
         return Icons.bluetooth;
-      case PrinterConnectionType.usb:
-        return Icons.usb;
+      case PrinterConnectionType.manualConnect:
+        return Icons.edit;
     }
   }
 }

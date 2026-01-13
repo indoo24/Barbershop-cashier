@@ -1,6 +1,7 @@
 import 'package:blue_thermal_printer/blue_thermal_printer.dart';
 import 'package:logger/logger.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 import 'permission_service.dart';
 
 /// Pre-flight check results for Bluetooth environment
@@ -95,20 +96,28 @@ class BluetoothEnvironmentService {
       }
     }
 
-    // 3. Check if Location is enabled (required for Bluetooth discovery)
+    // 3. Check if Location is enabled (required for Bluetooth discovery on Android < 12)
     bool isLocationEnabled = false;
     try {
+      // Get Android SDK version to determine if location is required
+      final androidInfo = await DeviceInfoPlugin().androidInfo;
+      final sdkInt = androidInfo.version.sdkInt;
+      
       final locationStatus = await Permission.location.serviceStatus;
       isLocationEnabled = locationStatus.isEnabled;
 
-      if (!isLocationEnabled) {
-        _logger.w('⚠️ Location services are disabled');
+      // Location is only strictly required on Android < 12 (API < 31)
+      // On Android 12+, BLUETOOTH_SCAN with neverForLocation flag is sufficient
+      if (!isLocationEnabled && sdkInt < 31) {
+        _logger.w('⚠️ Location services are disabled (required on Android < 12)');
         missingRequirements.add(
-          '• خدمات الموقع مغلقة - مطلوبة للبحث عن البلوتوث',
+          '• خدمات الموقع مغلقة - مطلوبة للبحث عن البلوتوث على أندرويد < 12',
         );
         error ??= BluetoothEnvironmentError.locationDisabled();
-      } else {
+      } else if (isLocationEnabled) {
         _logger.i('✅ Location services are enabled');
+      } else {
+        _logger.i('ℹ️ Location disabled but not required on Android 12+');
       }
     } catch (e) {
       _logger.e('❌ Failed to check location status: $e');

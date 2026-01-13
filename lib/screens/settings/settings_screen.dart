@@ -4,7 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../cubits/settings/settings_cubit.dart';
 import '../../cubits/settings/settings_state.dart';
 import '../../models/app_settings.dart';
-import '../casher/printer_settings_screen.dart';
+import '../casher/printer_selection_screen.dart';
 
 /// Main Settings Screen
 /// Allows configuration of business info, invoice settings, and tax settings
@@ -325,7 +325,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         onTap: () {
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => const PrinterSettingsScreen()),
+            MaterialPageRoute(builder: (_) => const PrinterSelectionScreen()),
           );
         },
       ),

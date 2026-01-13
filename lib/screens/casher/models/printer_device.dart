@@ -2,7 +2,7 @@
 enum PrinterConnectionType {
   wifi, // Network/WiFi printer
   bluetooth, // Bluetooth printer
-  usb, // USB printer
+  manualConnect, // Manual connection via MAC address
 }
 
 /// Printer source type - how the printer was discovered
@@ -95,8 +95,8 @@ class PrinterDevice {
         return '$name (WiFi - ${address ?? "N/A"})$label';
       case PrinterConnectionType.bluetooth:
         return '$name (Bluetooth)$label';
-      case PrinterConnectionType.usb:
-        return '$name (USB)$label';
+      case PrinterConnectionType.manualConnect:
+        return '$name (Manual - ${address ?? "N/A"})$label';
     }
   }
 

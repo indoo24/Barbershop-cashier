@@ -332,8 +332,9 @@ class PrinterService {
           return await _connectToWiFiPrinter(device);
         case PrinterConnectionType.bluetooth:
           return await _connectToBluetoothPrinter(device);
-        case PrinterConnectionType.usb:
-          return await _connectToUSBPrinter(device);
+        case PrinterConnectionType.manualConnect:
+          // Manual connect is treated as Bluetooth connection
+          return await _connectToBluetoothPrinter(device);
       }
     } catch (e) {
       print('Error connecting to printer: $e');
@@ -557,11 +558,9 @@ class PrinterService {
         case PrinterConnectionType.bluetooth:
           await _bluetoothPrinter.disconnect();
           break;
-        case PrinterConnectionType.usb:
-          // USB disconnection disabled (package compatibility issues)
-          // await _usbSubscription?.cancel();
-          // await _usbPort?.close();
-          // _usbPort = null;
+        case PrinterConnectionType.manualConnect:
+          // Manual connect is treated as Bluetooth
+          await _bluetoothPrinter.disconnect();
           break;
       }
 
@@ -701,8 +700,9 @@ class PrinterService {
           case PrinterConnectionType.bluetooth:
             success = await _printToBluetooth(bytes, timestamp);
             break;
-          case PrinterConnectionType.usb:
-            success = await _printToUSB(bytes, timestamp);
+          case PrinterConnectionType.manualConnect:
+            // Manual connect is treated as Bluetooth
+            success = await _printToBluetooth(bytes, timestamp);
             break;
         }
 

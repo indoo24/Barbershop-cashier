@@ -94,8 +94,9 @@ class PrinterCubit extends Cubit<PrinterState> {
       case PrinterConnectionType.bluetooth:
         // The service now handles pre-flight checks internally
         return await _printerService.scanBluetoothPrinters();
-      case PrinterConnectionType.usb:
-        return await _printerService.scanUSBPrinters();
+      case PrinterConnectionType.manualConnect:
+        // Manual connect doesn't scan, returns empty list
+        return [];
     }
   }
 

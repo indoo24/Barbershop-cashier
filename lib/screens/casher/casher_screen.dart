@@ -8,7 +8,7 @@ import 'cart_section.dart';
 import 'categories_section.dart';
 import 'models/service-model.dart';
 import 'invoice_page.dart';
-import 'printer_settings_screen.dart';
+import 'printer_selection_screen.dart';
 import '../settings/settings_screen.dart';
 import '../../cubits/cashier/cashier_cubit.dart';
 import '../../cubits/cashier/cashier_state.dart';
@@ -256,7 +256,7 @@ class _CashierScreenState extends State<CashierScreen> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => const PrinterSettingsScreen(),
+                      builder: (_) => const PrinterSelectionScreen(),
                     ),
                   );
                 },
